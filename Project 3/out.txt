@@ -1,0 +1,30 @@
+animal bird fish fruit 
+===animal===
+alligator bear cat cow deer dog horse lion tiger 
+===bird===
+blackbird crow dove flamingo 
+===fish===
+catfish garfish goldfish salmon swordfish 
+===fruit===
+apple apricot avocado banana cherry coconut cranberry mango nectarine peach 
+25 avocado found in fruit
+tilapia not found in fish
+15 cow found in animal
+20 crow found in bird
+cow not found in bird
+30 cat found in animal
+item before deer: 4
+animal: left height 1, right height 3, difference 2, not balanced
+bird: left height -1, right height 2, difference 3, not balanced
+fish: left height 1, right height 1, difference 0, balanced
+flower does not exist
+animal count 142
+fruit count 515
+cat deleted from animal
+cat not found in animal
+animal count 112
+swordfish deleted from fish
+avocado deleted from fruit
+animal deleted
+mango reduced
+50 mango found in fruit
