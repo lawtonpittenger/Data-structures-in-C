@@ -1,250 +1,291 @@
-/* COP 3502C Assignment 1
- * This program is written by: Lawton Pittenger */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+//#include "leak_detector_c.h"
 
-
-//Constant declarations
-#define MAX_SIZE 50
+// Constant declarations
 #define INFILE "in.txt"
 #define OUTFILE "out.txt"
+#define MAXSIZE 10
+#define NAMESIZE 1000
 
-// Structures declarations
-typedef struct Monster {
+// Struct declarations
+typedef struct soldier {
+    int index, sequenceNumber;
+    struct soldier *next, *prev;
+} Soldier;
+
+typedef struct queue {
+    Soldier *first, *last;
     char *name;
-    char *element;
-    int population;
-} Monster;
+    int soldiers, k, th;
+} Queue;
 
-typedef struct Region {
-    char *name;
-    int nMonsters;
-    int total_population;
-    Monster **monsters;
-} Region;
-
-typedef struct Itinerary {
-    int nRegions;
-    Region **regions;
-    int captures;
-} Itinerary;
-
-typedef struct Trainer {
-    char *name;
-    Itinerary *visits;
-} Trainer;
-
-// Created my own rounding function so I didn't have to use the math library.
-int roundUp (float f) {
-    if ((float) (f - (int)f) < 0.5f) return ((int)f);
-    else return ((int) f + 1);
+// Function declarations
+Soldier *createSoldier (int sequence) {
+    Soldier* new = (Soldier*) malloc (sizeof (Soldier));
+    new->sequenceNumber = sequence;
+    new->next = new->prev = NULL;
+    return new;
 }
 
-// Function that loads the file, and accounts for any missing / empty files.
-FILE *loadFile (int *fileExists, char* name) {
-    FILE *file_ptr;
-        if (!strcmp (name, INFILE)) file_ptr = fopen (name, "r");
-    else file_ptr = fopen (name, "w");
-        if (file_ptr == NULL && !strcmp (name, INFILE)) {
-        *fileExists = 0;
-        printf("The file was not found! Please make sure you have selected correct file and try again.");
-        file_ptr = fopen(name, "w");
-    }
-    else if (!strcmp (name, INFILE)) {
-        if (fgetc (file_ptr) == EOF) {
-            printf ("The \"%s\" file is empty! Please populate the file with the info and run again.\n", name);
-            *fileExists = 0;
+// Function that checks if the queue is empty
+int isEmpty (Queue *q) {
+    return !q->first;
+}
+
+// Returns first solider, does not manipulate the data in any way, just returns the value.
+int peek (Queue *q) {
+    if (isEmpty (q)) return 0;
+    else return q->first->index;
+}
+
+// Function that displays the queue
+void display (Queue *q, FILE *filePtr) {
+// First, check if the queue is empty
+    if (!isEmpty(q)) {;
+        fprintf (filePtr, "%d %s", q->first->sequenceNumber, q->name);
+        for (int i = 0; i < q->soldiers; i++) {
+            fprintf (filePtr, " %d", peek (q));
+            q->first = q->first->next;
         }
-        else fseek (file_ptr, 0, SEEK_SET);
+        fprintf (filePtr, "\n");
     }
-    return file_ptr;
 }
 
-// Function that creates the Monsters
-Monster *createMonster (char *name, char *element, int population) {
-//Allocates memory for monster
-    Monster *monster = (Monster*) malloc (sizeof (Monster));
-    monster->name = strdup (name);
-    monster->element = strdup (element);
-    monster->population = population;
-
-    return monster;
-}
-// Function that reads the monsters
-Monster **readMonsters (FILE *infile, int mCount) {
-//Allocates memory for each monster
-    Monster **monsters = (Monster**) malloc (sizeof (Monster*) * mCount);
-    char name [MAX_SIZE], element [MAX_SIZE];
-    int population;
-    for (int i = 0; i < mCount; i++) {
-        fscanf (infile, "%s %s %d", name, element, &population);
-        monsters[i] = createMonster (name, element, population);
-    }
-    return monsters;
-}
-// Function that frees the monsters allocated memory
-void freeMonsters (Monster** monsters, int mCount) {
-    for (int i = 0; i < mCount; i++) free (monsters[i]);
-    free (monsters);
-}
-
-// Function that creates Region 
-Region *createRegion (char *name, int nMonsters, int total_population, Monster** monsters) {
-    Region *region = (Region*) malloc (sizeof (Region));
-    region->name = strdup (name);
-    region->nMonsters = nMonsters;
-    region->total_population = total_population;
-    region->monsters = monsters;
-    return region;
-}
-// Function that reads Regions
-Region **readRegions (FILE *infile, int mCount, int rCount, Monster** monsters) {
-// Allocates memory for each region
-    Region **regions = (Region**) malloc (sizeof (Region*));
-    char regionName [MAX_SIZE], monsterName [MAX_SIZE];
-    int nMonsters, total_population;
-    Monster **regMonsters = NULL;
-    for (int i = 0; i < rCount; i++) {
-        total_population = 0;
-        fscanf (infile, "%s %d %*s",regionName, &nMonsters);
-        regMonsters = (Monster**) malloc (sizeof (Monster*) * mCount);
-        for (int j = 0; j < nMonsters; j++) {
-            fscanf (infile, "%s", monsterName);
-            for (int k = 0; k < mCount; k++) if (strcmp (monsterName, monsters[k]->name) == 0) {
-                    regMonsters[j] = monsters[k];
-                    total_population += monsters[k]->population;
-                }
-        }
-        regions [i] = createRegion (regionName, nMonsters, total_population, regMonsters);
-    }
-    return regions;
-}
-// Function that frees regions allocated memory
-void freeRegions (Region** regions, int rCount) {
-    for (int i = 0; i < rCount; i++) {
-        free (regions[i]->monsters);
-        free (regions[i]);
-    }
-    free (regions);
-}
-
-// Function that creates Itinerary
-Itinerary *createItinerary (int nRegions, Region** regions, int captures) {
-    Itinerary *itinerary = (Itinerary*) malloc (sizeof (Itinerary));
-    itinerary->nRegions = nRegions;
-    itinerary->regions = regions;
-    itinerary->captures = captures;
-
-    return itinerary;
-}
-// Function that frees itinerarys allocated memory
-void freeItinerary (Itinerary *itinerary) {
-    free (itinerary);
-}
-
-// Function that creates trainer
-Trainer *createTrainer (char *name, Itinerary *visits) {
-    Trainer *trainer = (Trainer*) malloc (sizeof (Trainer));
-    trainer->name = strdup (name);
-    trainer->visits = visits;
-
-    return trainer;
-}
-// Function that reads trainer
-Trainer **readTrainers (FILE *infile, Region** regionList, int rCount, int numTrainers) {
-    int numCaptures, nRegions;
-    char currRegion [MAX_SIZE], currName [MAX_SIZE];
-    Region ** regions = NULL;
-    Itinerary *itinerary = NULL;
-    Trainer **trainers = (Trainer**) malloc (sizeof (Trainer*) * numTrainers);
-
-    for (int i = 0; i < numTrainers; i++) {
-        fscanf (infile, "%s %d %*s %d %*s", currName, &numCaptures, &nRegions);
-        regions = (Region**) malloc (sizeof (Region *) * nRegions);
-        for (int j = 0, k = 0, fNEXT = 1; j < rCount && k < nRegions; j++) {
-            if (fNEXT) {
-                fscanf (infile, "%s", currRegion);
-                fNEXT = 0;
-            }
-            if (strcmp (currRegion, regionList[j]->name) == 0) {
-                fNEXT = 1;
-                regions [k++] = regionList [j];
+// Function to sort the queue to prep for elimination
+void sortQueue (Queue **q, int numGroups) {
+    Queue *tq;
+    int fValid = 0, i = 0;
+    while (!fValid) {
+        if (i < numGroups) {
+            if (q[i]->first->sequenceNumber > q[i + 1]->first->sequenceNumber) {
+                tq = q[i];
+                q[i] = q[i + 1];
+                q[i + 1] = tq;
+                i = -1;
             }
         }
-        itinerary = createItinerary (nRegions, regions, numCaptures);
-        trainers [i] = createTrainer (currName, itinerary);
+        if (++i == numGroups - 1) fValid = 1;
     }
-    return trainers;
-}
-// Function that frees trainer allocated memory
-void freeTrainers (Trainer **trainers, int numTrainers) {
-    for (int i = 0; i < numTrainers; i++) {
-        free (trainers[i]->visits->regions);
-        freeItinerary (trainers[i]->visits);
-        free (trainers[i]);
-    }
-    free (trainers);
-}
-// Function that frees all memory by calling all other free memory functions
-void freeAllMemory (Trainer **trainers, Region **regions, Monster **monsters, int tCount, int rCount, int mCount) {
-    freeTrainers (trainers, tCount);
-    freeRegions (regions, rCount);
-    freeMonsters (monsters, mCount);
 }
 
-// Main method begins here
+// Sorting algorithm to sort the specific soldier queues
+void sortSoldierQueue (Queue **q, int numGroups) {
+    Queue *tq;
+    int fValid = 0, i = 0;
+    while (!fValid) {
+        if (i < numGroups) {
+            if (q[i]->soldiers < q[i + 1]->soldiers) {
+                tq = q[i];
+                q[i] = q[i + 1];
+                q[i + 1] = tq;
+                i = -1;
+            }
+
+// To account for when two soldiers tie.
+            else if (q[i]->soldiers == q[i + 1]->soldiers) {
+                if (q[i]->first->sequenceNumber > q[i + 1]->first->sequenceNumber) {
+                    tq = q[i];
+                    q[i] = q[i + 1];
+                    q[i + 1] = tq;
+                    i = -1;
+                }}}
+        if (++i == numGroups - 1) fValid = 1;
+    }
+}
+
+// Function that rearranges the linked list 
+void rearrangeCircle(Queue *q) {
+    // Check to see if list of soldiers is empty
+    if (!isEmpty(q) && q->soldiers > 1) {
+    // We need a current and a temp soldier to hold values.
+        Soldier *current = q->first;
+        Soldier *temp;
+    // Do while loop so that it gets the first node in the list as well
+        do {
+            temp = current->prev;
+            current->prev = current->next;
+            current->next = temp;
+            current = current->next;
+        } while (current != q->first);
+        q->first = q->first->next;
+    }
+}
+
+// I combined enqueue and the create reverse circle into one function for efficiency purposes 
+Queue *enqueue (int sequenceNumber, int soldiers) {
+    Queue *q = (Queue*) malloc (sizeof (Queue));
+    q->first = q->last = NULL;
+    Soldier *current;
+    q->soldiers = soldiers;
+
+    for (int i = soldiers; i > 0; i--) {
+        // Create a new soldier node
+        current = createSoldier(sequenceNumber);
+        current->index = i;
+        // If it is the first value, we need to set the first and the last equal to be same  
+        if (q->first == q->last && q->first == NULL) {
+            q->first = q->last = current;
+            q->first->next = q->last->next = q->first->prev = q->last->prev = NULL;
+        }
+        // Else, we set the next value to the current value, so that last->next never becomes NULL
+        else {
+            q->last->next = current;
+            current->prev = q->last;
+            q->last = current;
+            q->last->next = q->first;
+            q->first->prev = q->last;
+        }
+    }
+    return q;
+}
+
+
+ // Function that deletes nodes from the queue
+void killSoldier (Queue *q) {
+   
+    if (!isEmpty(q)) {
+        Soldier *killed = q->first, *temp, *toDelete = q->first;
+        temp = killed->prev;
+        killed = killed->next;
+        killed->prev = temp;
+        temp->next = killed;
+        free (toDelete);
+    }
+}
+
+// Simple dequeue function to delete the first node in the list
+void dequeue (Queue *q) {
+    if (q->first != q->first->next) {
+        killSoldier(q);
+        q->first = q->first->next;
+    }
+}
+
+// Phase 1 function
+void phase1 (Queue **q, int numGroups, FILE *file) {
+    int currSoldiers;
+    fprintf (file, "\nPhase1 execution\n");
+    for (int i = 0, j = 0; i < numGroups; i++) {
+        currSoldiers = q[i]->soldiers;
+        fprintf (file, "\nLine# %d %s\n", q[i]->first->sequenceNumber, q[i]->name);
+        while (currSoldiers != q[i]->th) {
+            if (j == q[i]->k - 1) {
+                j = -1;
+                currSoldiers--;
+                fprintf(file, "Soldier# %d executed\n", q[i]->first->index);
+                killSoldier (q[i]);
+            }
+            q[i]->first = q[i]->first->next;
+
+            ++j;
+        }
+        j = 0;
+    }
+}
+
+// Phase 2 function
+void phase2 (Queue **q, int numGroups, FILE *file) {
+    fprintf (file, "\nPhase2 execution\n");
+    for (int i = 0; i < numGroups; i++) {
+        if (q[i]->first->index != q[i]->first->next->index) {
+            while (q[i]->first != q[i]->first->next) {
+                fprintf(file, "Executed Soldier %d from line %d\n", q[i]->first->index, q[i]->first->sequenceNumber);
+                dequeue(q[i]);
+            }
+        }
+        if (i != numGroups - 1) {
+            fprintf (file, "Executed Soldier %d from line %d\n", q[i]->first->index, q[i]->first->sequenceNumber);
+            
+        }
+        else {
+            fprintf (file, "\nSoldier %d from line %d will survive", peek (q[i]), q[i]->first->sequenceNumber);
+        }
+    }
+}
+
+
 int main() {
-//Call atexit to test for mem leaks
+  //  atexit (report_mem_leak);
+    FILE *file = fopen (INFILE, "r");
 
-
-// Code that checks if file exists / creates neccessary pointers.
-    int fileExists = 1, *fPtr = &fileExists;
-    FILE* file_ptr = loadFile (fPtr, INFILE);
-    if (!fileExists) {
+    // Check if input file excists
+    if (file == NULL) {
+        file = fopen (INFILE, "w");
+        fclose (file);
+        printf ("The file, \"%s\" was not found in the directory. Please populate the new file with your information.\n", INFILE);
         return 1;
     }
+    // Declare the queue and numGroups variable
+    Queue **queue;
+    int numGroups;
 
-//fscanf's through the file to grab neccessary information and store in corresponding variables
-    int mCount, rCount, tCount,currentAverage = 0;
-    fscanf (file_ptr, "%d %*s", &mCount); 
-    Monster ** monsters = readMonsters (file_ptr, mCount);
-    fscanf (file_ptr, "%d %*s", &rCount);
-    Region ** regions = readRegions (file_ptr, mCount, rCount, monsters);
-    fscanf (file_ptr, "%d %*s", &tCount);
-    Trainer ** trainers = readTrainers(file_ptr, regions, rCount, tCount);
-
-    // Close the input file, and load the output file to write too.
-    fclose (file_ptr);
-    loadFile (&fileExists, OUTFILE);
-
-//For loops that go through and print to the outfile, first loop prints names of trainer
-        for (int i = 0; i < tCount; i++) {
-            fprintf(file_ptr, "%s\n", trainers[i]->name);
-
-//Second for loop goes through and prints the name of each Region
-
-        for (int j = 0; j < trainers[i]->visits->nRegions; j++) {
-            fprintf (file_ptr, "%s\n", trainers[i]->visits->regions[j]->name);
-
-//Third for loop goes through and prints the number of monsters captured per region, as well as the name of the monster.            
-        for (int k = 0; k < trainers[i]->visits->regions[j]->nMonsters; k++) {
-//Calculates current average, and rounds up the values to the next int.
-                currentAverage = roundUp ((float) trainers[i]->visits->regions[j]->monsters[k]->population / (float) trainers[i]->visits->regions[j]->total_population * (float) trainers [i]->visits->captures);
-                if (currentAverage){
-                  fprintf (file_ptr, "%d %s\n", currentAverage, trainers[i]->visits->regions[j]->monsters[k]->name);
-                } 
-            }
-        } 
-        fprintf(file_ptr, "\n");
+    // Check if user is trying to create more groups that MAXSIZE
+    if (fscanf (file, "%d", &numGroups) == 1) {
+        if (numGroups > MAXSIZE) {
+            printf("An invalid number of groups was declared in \"%s\": %d. A MAXSIZEimum of %d groups can be declared.\n",
+                   INFILE, numGroups, MAXSIZE);
+            fclose(file);
+            return 2;
+        }
     }
-//Close the file to ensure what we wrote to it gets saved
-    fclose (file_ptr);
 
-//Free all the allocated memory to prevent any memory leaks
-    freeAllMemory (trainers, regions, monsters, tCount, rCount, mCount);
+
+    // Allocates memory for proper number of groups
+    queue = (Queue**) malloc (sizeof (Queue*) * numGroups);
+
+    char name [NAMESIZE];
+    int group, soldiers, k, th;
+    // Iterates through the infile and adds the data to the queue struct
+    for (int i = 0; i < numGroups; i++) {
+        fscanf (file, "%d %s %d %d %d", &group, name, &soldiers, &k, &th);
+            queue[i] = enqueue (group, soldiers);
+            queue[i]->name = strdup (name);
+            queue[i]->th = th;
+            queue[i]->k = k;
+        }
+    // Sort the queue
+    sortQueue (queue, numGroups);
+    fclose (file);
+    // Open up out file for writing output too
+    file = fopen (OUTFILE, "w");
+    fprintf (file, "Initial nonempty lists status\n");
+
+    for (int i = 0; i < numGroups; i++) display (queue [i], file);
+        fprintf (file, "\nAfter ordering nonempty lists status\n");
+    for (int i = 0; i < numGroups; i++) {
+        rearrangeCircle (queue[i]);
+        display (queue[i], file);
+    }
+    // Call phase 1 function
+    phase1 (queue, numGroups, file);
+    sortSoldierQueue (queue, numGroups);
+    for (int i = 0; i < numGroups; i ++) {
+        // The list now needs soldiers to be formatted by their respective original number.
+        for (int j = 0; j < queue[i]->soldiers; j++) {
+            if (peek (queue [i]) > queue[i]->first->next->index) {
+                queue[i]->first = queue[i]->first->next;
+                j = -1;
+            }
+        }
+    }
+    // Call phase 2 function
+    phase2 (queue, numGroups, file);
+    // Loops that print the neccessary information for phase 2
+    for (int i = 0; i < numGroups; i++) {
+        while (queue[i]->first != queue[i]->first->next) {
+            queue[i]->first = queue[i]->first->next;
+            free (queue[i]->first->prev);
+        }
+      // Free all the allocated memory as phase 2 is now complete
+        free (queue[i]->first);
+        free (queue[i]);
+    }
+    //Finish freeing the memory
+    free (queue);
+    // Close the outfile so our changes are saved
+    fclose (file);
     return 0;
-
-//And we're done
 }
-
+    // And we're done !
